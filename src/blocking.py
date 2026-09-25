@@ -33,12 +33,10 @@ def candidates_for_row(row, target, indexes, max_candidates=50):
         if key:
             ids.update(index.get((country, key), []))
 
-    # Exact and prefix blocks.
     add(indexes["name"], row["name_norm"])
     add(indexes["name_prefix"], row["name_prefix"])
     add(indexes["address_prefix"], row["address_prefix"])
 
-    # Strongest informative tokens only.
     for token in sorted(row["name_tokens"], key=len, reverse=True)[:3]:
         ids.update(indexes["name_token"].get((country, token), []))
     for token in sorted(row["address_tokens"], key=len, reverse=True)[:3]:
@@ -47,24 +45,20 @@ def candidates_for_row(row, target, indexes, max_candidates=50):
     if len(ids) <= max_candidates:
         return sorted(ids)
 
-    # Cheap deterministic ranking before the expensive ML feature stage.
     scored = []
     for j in ids:
         t = target.iloc[j]
-        ns = max(
-            ratio(row["name_norm"], t["name_norm"]),
-            token_set_ratio(row["name_norm"], t["name_norm"]),
-        )
-        ads = max(
-            ratio(row["address_norm"], t["address_norm"]),
-            token_set_ratio(row["address_norm"], t["address_norm"]),
-        )
+        ns = max(ratio(row["name_norm"], t["name_norm"]),
+                 token_set_ratio(row["name_norm"], t["name_norm"]))
+        ads = max(ratio(row["address_norm"], t["address_norm"]),
+                  token_set_ratio(row["address_norm"], t["address_norm"]))
         exact_bonus = 1000 if row["name_norm"] and row["name_norm"] == t["name_norm"] else 0
         scored.append((exact_bonus + 0.7 * ns + 0.3 * ads, j))
     scored.sort(reverse=True)
     return sorted(j for _, j in scored[:max_candidates])
 
-def generate_candidate_pairs(source1, target, max_candidates=50):
-    indexes = build_indexes(target)
+def generate_candidate_pairs(source1, target, max_candidates=50, indexes=None):
+    if indexes is None:
+        indexes = build_indexes(target)
     for i in range(len(source1)):
         yield i, candidates_for_row(source1.iloc[i], target, indexes, max_candidates)
